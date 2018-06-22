@@ -1,0 +1,23 @@
+
+ldap_listen_port: 389
+ldap_listen_ip: 0.0.0.0
+
+app_users:
+  - username: grafana
+    password: grafana-ldap-password
+
+  - username: jenkins
+    password: jenkis-ldap-password
+
+  - username: nexus
+    password: nexus-ldap-password
+
+iam:
+  api_key: "AWS_API_KEY"
+  api_secret: "AWS_API_SECRET"
+  region: "eu-west-1"
+  users_whitelist:
+    - "Admin"
+    - "User1"
+    - "User2"
+

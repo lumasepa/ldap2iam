@@ -5,6 +5,12 @@ import (
 )
 
 func main() {
+	conf, err := readConf("./ldap2iam.conf.yaml")
+
+	if err != nil {
+		panic(err)
+	}
+
 	var iamBackend ldap.Backend = IAMBackend{}
 	server, err := ldap.NewServer(iamBackend, nil)
 
@@ -12,7 +18,7 @@ func main() {
 		panic(err)
 	}
 
-	err = server.Serve("tcp", "0.0.0.0:389")
+	err = server.Serve("tcp", conf.LdapListenIp + ":" + string(conf.LdapListenPort))
 
 	if err != nil {
 		panic(err)

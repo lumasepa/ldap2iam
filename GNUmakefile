@@ -1,6 +1,11 @@
 TEST?=$$(go list ./... |grep -v 'vendor')
 GOFMT_FILES?=$$(find . -name '*.go' |grep -v vendor)
 
+run:
+	@CGO_ENABLED=0 go build
+	@./ldap2iam
+	@rm ./ldap2iam
+
 default: build
 
 build: fmt
