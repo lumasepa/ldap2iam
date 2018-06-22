@@ -4,10 +4,9 @@ import (
 	"github.com/samuel/go-ldap/ldap"
 )
 
-
-func main(){
+func main() {
 	var iamBackend ldap.Backend = IAMBackend{}
-	server, err := ldap.NewServer(iamBackend,nil)
+	server, err := ldap.NewServer(iamBackend, nil)
 
 	if err != nil {
 		panic(err)

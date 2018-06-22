@@ -2,16 +2,14 @@ package main
 
 import (
 	"fmt"
-	"net"
-	"github.com/samuel/go-ldap/ldap"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/iam"
+	"github.com/samuel/go-ldap/ldap"
 	"log"
+	"net"
 )
 
-
-
-type IAMBackend struct{
+type IAMBackend struct {
 	iamconn *iam.IAM
 }
 
