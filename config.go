@@ -5,23 +5,12 @@ import (
 	"io/ioutil"
 )
 
-type AppUser struct {
-	Username string `yaml:"username"`
-	Password string `yaml:"password"`
-}
-
-type IAMConfig struct {
-	UsersWhitelist []string `yaml:"users_whitelist"`
-	ApiKey string `yaml:"api_key"`
-	ApiSecret string `yaml:"api_secret"`
-	Region string `yaml:"region"`
-}
 
 type Configuration struct {
-	LdapListenPort int `yaml:"ldap_listen_port"`
-	LdapListenIp string `yaml:"ldap_listen_ip"`
-	AppUsers []AppUser `yaml:"app_users"`
-	IAM IAMConfig `yaml:"iam"`
+	LdapListenPort int    `yaml:"ldap_listen_port"`
+	LdapListenIp   string `yaml:"ldap_listen_ip"`
+	VaultUrl       string `yaml:"vault_url"`
+	AuthenticateApps bool `yaml:"authenticate_apps"`
 }
 
 func readConf(confPath string) (*Configuration, error) {

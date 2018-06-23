@@ -1,10 +1,10 @@
 TEST?=$$(go list ./... |grep -v 'vendor')
 GOFMT_FILES?=$$(find . -name '*.go' |grep -v vendor)
 
-run:
+example:
 	@CGO_ENABLED=0 go build
-	@./ldap2iam
-	@rm ./ldap2iam
+	@mv ./ldap2vault ./example_integration/ldap2vault
+	@bash ./example_integration/run.sh
 
 default: build
 
