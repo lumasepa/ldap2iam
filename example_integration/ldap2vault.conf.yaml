@@ -2,6 +2,6 @@
 ldap_listen_port: 1389
 ldap_listen_ip: 0.0.0.0
 
-authenticate_apps: false
-
-vault_url: "http://127.0.0.1:8200"
+vault:
+  url: "http://127.0.0.1:8200"
+  users_path: "/services/users"

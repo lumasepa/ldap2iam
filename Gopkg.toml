@@ -28,6 +28,10 @@
   branch = "master"
   name = "github.com/samuel/go-ldap"
 
+[[constraint]]
+  branch = "master"
+  name = "github.com/hashicorp/vault"
+
 [prune]
   go-tests = true
   unused-packages = true

@@ -18,7 +18,7 @@ func main() {
 		panic(err)
 	}
 
-	var vaultBackend ldap.Backend = NewVaultBackend(conf.VaultUrl, conf.AuthenticateApps)
+	var vaultBackend ldap.Backend = NewVaultBackend(conf.VaultConfiguration, conf.AuthenticateApps)
 	server, err := ldap.NewServer(vaultBackend, nil)
 
 	if err != nil {
@@ -27,7 +27,7 @@ func main() {
 	listenAddr := conf.LdapListenIp + ":" +  strconv.Itoa(conf.LdapListenPort)
 
 	log.Printf("Ldap Server listening in %s" , listenAddr)
-	log.Printf("Vault backend url %s" , conf.VaultUrl)
+	log.Printf("Vault backend url %s" , conf.VaultConfiguration.Url)
 
 	err = server.Serve("tcp", listenAddr)
 

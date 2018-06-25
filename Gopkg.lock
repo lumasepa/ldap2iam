@@ -60,6 +60,7 @@
   revision = "ef8a98b0bbce4a65b5aa4c368430a80ddc533168"
 
 [[projects]]
+  branch = "master"
   name = "github.com/hashicorp/vault"
   packages = [
     "api",
@@ -69,8 +70,7 @@
     "helper/parseutil",
     "helper/strutil"
   ]
-  revision = "533003e27840d9646cb4e7d23b3a113895da1dd0"
-  version = "v0.10.3"
+  revision = "5ddb2c3cb4608e7dd952a995d035703c50986944"
 
 [[projects]]
   branch = "master"
@@ -144,6 +144,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "4610f89e9ecab27a47459ddcc337ce9fc673402e0fc8a5dabb7a6abcdda3ed45"
+  inputs-digest = "d7e4b7b2c6b7097dd30484834b12eeb9716128db39880b417be69b15ac277839"
   solver-name = "gps-cdcl"
   solver-version = 1

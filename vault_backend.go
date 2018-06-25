@@ -7,19 +7,17 @@ import (
 	"net"
 	"strings"
 	"errors"
-	"fmt"
 	"net/http"
 )
 
 type LdapClientCtx struct {
 	AppIsAuthenticated bool
+	Client   vault.Client
 }
 
 type VaultBackend struct {
-	vaultUrl string
+	VaultConfiguration VaultConfig
 	AuthenticateApps bool
-	client   vault.Client
-
 }
 
 func parseDN(dn string) (string, error){
@@ -34,29 +32,41 @@ func parseDN(dn string) (string, error){
 	return username[1], nil
 }
 
-func NewVaultBackend(vaultUrl string, authenticateApps bool) VaultBackend {
-	client, err := vault.NewClient(&vault.Config{Address: vaultUrl, HttpClient: &http.Client{}})
+func NewVaultBackend(vaultConfiguration VaultConfig, authenticateApps bool) VaultBackend {
+	return VaultBackend{vaultConfiguration, authenticateApps}
+}
+
+func (self VaultBackend) VaultAuthenticateUser(client *vault.Client, username string, password string) (bool, error) {
+	secret, err  := client.Logical().Read(self.VaultConfiguration.UsersPath)
 	if err != nil {
-		panic(err)
+		return false, err
 	}
 
-	return VaultBackend{vaultUrl, authenticateApps,*client}
+	if vaultStoredPassword, ok := secret.Data[username]; ok {
+		if vaultStoredPassword == password {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
-func (self VaultBackend) VaultAuthenticate(username string, password string) (*vault.Secret, error) {
+func (self VaultBackend) VaultAuthenticateApp(client *vault.Client, RoleId string, SecretId string) (authToken string, err error) {
 	options := map[string]interface{}{
-		"password": password,
+		"role_id": RoleId,
+		"secret_id": SecretId,
 	}
-
-	path := fmt.Sprintf("auth/userpass/login/%s", username)
-	return self.client.Logical().Write(path, options)
+	path := "auth/approle/login"
+	secret, err := client.Logical().Write(path, options)
+	if err != nil {
+		return
+	}
+	return secret.TokenID()
 }
 
-
-func (self VaultBackend) AuthenticateAppUser(ctx *LdapClientCtx, username string, password string) (*ldap.BindResponse, error) {
+func (self VaultBackend) AuthenticateAppRole(ctx *LdapClientCtx, username string, password string) (*ldap.BindResponse, error) {
 	log.Printf("Authenticating app user : %s", username)
 
-	_, err := self.VaultAuthenticate(username, password)
+	authToken, err := self.VaultAuthenticateApp(&ctx.Client, username, password)
 
 	if err != nil {
 		return &ldap.BindResponse{
@@ -69,6 +79,8 @@ func (self VaultBackend) AuthenticateAppUser(ctx *LdapClientCtx, username string
 	}
 
 	ctx.AppIsAuthenticated = true
+	ctx.Client.SetToken(authToken)
+
 	return &ldap.BindResponse{
 		BaseResponse: ldap.BaseResponse{
 			Code:      ldap.ResultSuccess,
@@ -78,12 +90,12 @@ func (self VaultBackend) AuthenticateAppUser(ctx *LdapClientCtx, username string
 	}, nil
 }
 
-func (self VaultBackend) AuthenticateVaultUser(username string, password string) (*ldap.BindResponse, error) {
+func (self VaultBackend) AuthenticateVaultUser(ctx *LdapClientCtx, username string, password string) (*ldap.BindResponse, error) {
 	log.Printf("Authenticating vault user : %s", username)
 
-	_, err := self.VaultAuthenticate(username, password)
+	isAuthenticated, err := self.VaultAuthenticateUser(&ctx.Client, username, password)
 
-	if err != nil {
+	if err != nil || ! isAuthenticated {
 		return &ldap.BindResponse{
 			BaseResponse: ldap.BaseResponse{
 				Code:      ldap.ResultInvalidCredentials,
@@ -106,7 +118,11 @@ func (self VaultBackend) AuthenticateVaultUser(username string, password string)
 // LDAP Backend interface
 //
 func (self VaultBackend) Connect(addr net.Addr) (ldap.Context, error) {
-	ldapClientCtx := &LdapClientCtx{AppIsAuthenticated: ! self.AuthenticateApps}
+	client, err := vault.NewClient(&vault.Config{Address: self.VaultConfiguration.Url, HttpClient: &http.Client{}})
+	if err != nil {
+		return nil, err
+	}
+	ldapClientCtx := &LdapClientCtx{AppIsAuthenticated: false, Client: *client}
 	return ldapClientCtx, nil
 }
 
@@ -139,9 +155,9 @@ func (self VaultBackend) Bind(ctx ldap.Context, req *ldap.BindRequest) (*ldap.Bi
 	}
 
 	if ! ldapClientCtx.AppIsAuthenticated {
-		return self.AuthenticateAppUser(ldapClientCtx, username, password)
+		return self.AuthenticateAppRole(ldapClientCtx, username, password)
 	}else{
-		return self.AuthenticateVaultUser(username, password)
+		return self.AuthenticateVaultUser(ldapClientCtx, username, password)
 	}
 }
 

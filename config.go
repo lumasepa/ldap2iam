@@ -5,12 +5,18 @@ import (
 	"io/ioutil"
 )
 
+type VaultConfig struct {
+	Url       string `yaml:"url"`
+	SecretId  string `yaml:"secret_id"`
+	RoleId    string `yaml:"role_id"`
+	UsersPath string `yaml:"users_path"`
+}
 
 type Configuration struct {
 	LdapListenPort int    `yaml:"ldap_listen_port"`
 	LdapListenIp   string `yaml:"ldap_listen_ip"`
-	VaultUrl       string `yaml:"vault_url"`
-	AuthenticateApps bool `yaml:"authenticate_apps"`
+	AuthenticateApps 	bool `yaml:"authenticate_apps"`
+	VaultConfiguration VaultConfig `yaml:"vault"`
 }
 
 func readConf(confPath string) (*Configuration, error) {
