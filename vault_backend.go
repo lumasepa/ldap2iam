@@ -69,6 +69,7 @@ func (self VaultBackend) AuthenticateAppRole(ctx *LdapClientCtx, username string
 	authToken, err := self.VaultAuthenticateApp(&ctx.Client, username, password)
 
 	if err != nil {
+		log.Printf("Error authenticating app user : %s : %s", username, err)
 		return &ldap.BindResponse{
 			BaseResponse: ldap.BaseResponse{
 				Code:      ldap.ResultInvalidCredentials,
@@ -80,6 +81,7 @@ func (self VaultBackend) AuthenticateAppRole(ctx *LdapClientCtx, username string
 
 	ctx.AppIsAuthenticated = true
 	ctx.Client.SetToken(authToken)
+	log.Printf("App user %s Authenticated", username)
 
 	return &ldap.BindResponse{
 		BaseResponse: ldap.BaseResponse{
@@ -163,11 +165,31 @@ func (self VaultBackend) Bind(ctx ldap.Context, req *ldap.BindRequest) (*ldap.Bi
 
 func (VaultBackend) Search(ctx ldap.Context, req *ldap.SearchRequest) (*ldap.SearchResponse, error) {
 	log.Printf("SEARCH %+v\n", req)
-	ldapClientCtx, _ := ctx.(*LdapClientCtx)
-	log.Print(ldapClientCtx)
+	_, ok := ctx.(*LdapClientCtx)
+	if !ok {
+		return &ldap.SearchResponse{
+			BaseResponse: ldap.BaseResponse{
+				Code:      ldap.ResultNoSuchObject,
+				MatchedDN: "",
+				Message:  "",
+			},
+		}, nil
+	}
+	_, err  := parseDN(req.BaseDN)
+	if err != nil {
+		return &ldap.SearchResponse{
+			BaseResponse: ldap.BaseResponse{
+				Code:      ldap.ResultNoSuchObject,
+				MatchedDN: "",
+				Message:  err.Error(),
+			},
+		}, nil
+	}
+
+
 	return &ldap.SearchResponse{
 		BaseResponse: ldap.BaseResponse{
-			Code:      ldap.ResultSuccess, //LDAPResultNoSuchObject,
+			Code:      ldap.ResultSuccess,
 			MatchedDN: "",
 			Message:   "",
 		},
