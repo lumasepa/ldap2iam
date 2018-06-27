@@ -1,25 +1,17 @@
-package main
+package config
 
 import (
 	"gopkg.in/yaml.v2"
 	"io/ioutil"
 )
 
-type VaultConfig struct {
-	Url       string `yaml:"url"`
-	SecretId  string `yaml:"secret_id"`
-	RoleId    string `yaml:"role_id"`
-	UsersPath string `yaml:"users_path"`
-}
-
 type Configuration struct {
 	LdapListenPort int    `yaml:"ldap_listen_port"`
 	LdapListenIp   string `yaml:"ldap_listen_ip"`
-	AuthenticateApps 	bool `yaml:"authenticate_apps"`
-	VaultConfiguration VaultConfig `yaml:"vault"`
+	VaultUrl string `yaml:"vault_url"`
 }
 
-func readConf(confPath string) (*Configuration, error) {
+func ReadConf(confPath string) (*Configuration, error) {
 
 	conf := &Configuration{}
 	confFileContent, err := ioutil.ReadFile(confPath)

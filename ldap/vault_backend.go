@@ -1,26 +1,24 @@
-package main
+package ldap
 
 import (
 	"github.com/samuel/go-ldap/ldap"
-	vault "github.com/hashicorp/vault/api"
 	"log"
 	"net"
 	"strings"
 	"errors"
-	"net/http"
+	"github.com/lumasepa/ldap2vault/vault"
 )
 
 type LdapClientCtx struct {
 	AppIsAuthenticated bool
-	Client   vault.Client
+	Client   vault.VaultClient
 }
 
 type VaultBackend struct {
-	VaultConfiguration VaultConfig
-	AuthenticateApps bool
+	VaultUrl string
 }
 
-func parseDN(dn string) (string, error){
+func DNtoUser(dn string) (string, error){
 	splited := strings.Split(dn, ",")
 	if len(splited) < 1 {
 		return "", errors.New("invalid dn")
@@ -32,41 +30,34 @@ func parseDN(dn string) (string, error){
 	return username[1], nil
 }
 
-func NewVaultBackend(vaultConfiguration VaultConfig, authenticateApps bool) VaultBackend {
-	return VaultBackend{vaultConfiguration, authenticateApps}
-}
+func DNtoPath(dn string) (string, error){
 
-func (self VaultBackend) VaultAuthenticateUser(client *vault.Client, username string, password string) (bool, error) {
-	secret, err  := client.Logical().Read(self.VaultConfiguration.UsersPath)
-	if err != nil {
-		return false, err
+	splited := strings.Split(dn, ",")
+	if len(splited) < 1 {
+		return "", errors.New("invalid dn")
 	}
 
-	if vaultStoredPassword, ok := secret.Data[username]; ok {
-		if vaultStoredPassword == password {
-			return true, nil
+	pathElements := make([]string, len(splited))
+
+	for i := len(splited) - 1; i >= 0; i++ {
+		element := splited[i]
+		splitedElement := strings.Split(element, "=")
+		if len(splitedElement) != 2 {
+			return "", errors.New("invalid cn")
 		}
+		pathElements = append(pathElements, splitedElement[1])
 	}
-	return false, nil
+	return strings.Join(pathElements, "/"), nil
 }
 
-func (self VaultBackend) VaultAuthenticateApp(client *vault.Client, RoleId string, SecretId string) (authToken string, err error) {
-	options := map[string]interface{}{
-		"role_id": RoleId,
-		"secret_id": SecretId,
-	}
-	path := "auth/approle/login"
-	secret, err := client.Logical().Write(path, options)
-	if err != nil {
-		return
-	}
-	return secret.TokenID()
+func NewVaultBackend(vaultUrl string) VaultBackend {
+	return VaultBackend{vaultUrl}
 }
 
 func (self VaultBackend) AuthenticateAppRole(ctx *LdapClientCtx, username string, password string) (*ldap.BindResponse, error) {
 	log.Printf("Authenticating app user : %s", username)
 
-	authToken, err := self.VaultAuthenticateApp(&ctx.Client, username, password)
+	authToken, err := ctx.Client.AuthenticateApp(username, password)
 
 	if err != nil {
 		log.Printf("Error authenticating app user : %s : %s", username, err)
@@ -92,10 +83,10 @@ func (self VaultBackend) AuthenticateAppRole(ctx *LdapClientCtx, username string
 	}, nil
 }
 
-func (self VaultBackend) AuthenticateVaultUser(ctx *LdapClientCtx, username string, password string) (*ldap.BindResponse, error) {
-	log.Printf("Authenticating vault user : %s", username)
+func (self VaultBackend) AuthenticateVaultUser(ctx *LdapClientCtx, path string, password string) (*ldap.BindResponse, error) {
+	log.Printf("Authenticating vault user : %s", path)
 
-	isAuthenticated, err := self.VaultAuthenticateUser(&ctx.Client, username, password)
+	isAuthenticated, err := ctx.Client.AuthenticateUser(path, password)
 
 	if err != nil || ! isAuthenticated {
 		return &ldap.BindResponse{
@@ -120,11 +111,11 @@ func (self VaultBackend) AuthenticateVaultUser(ctx *LdapClientCtx, username stri
 // LDAP Backend interface
 //
 func (self VaultBackend) Connect(addr net.Addr) (ldap.Context, error) {
-	client, err := vault.NewClient(&vault.Config{Address: self.VaultConfiguration.Url, HttpClient: &http.Client{}})
+	client, err := vault.NewVaultClient(self.VaultUrl)
 	if err != nil {
 		return nil, err
 	}
-	ldapClientCtx := &LdapClientCtx{AppIsAuthenticated: false, Client: *client}
+	ldapClientCtx := &LdapClientCtx{AppIsAuthenticated: false, Client: client}
 	return ldapClientCtx, nil
 }
 
@@ -145,21 +136,30 @@ func (self VaultBackend) Bind(ctx ldap.Context, req *ldap.BindRequest) (*ldap.Bi
 		}, nil
 	}
 
-	username, err  := parseDN(req.DN)
-	if err != nil {
-		return &ldap.BindResponse{
-			BaseResponse: ldap.BaseResponse{
-				Code:      ldap.ResultInappropriateAuthentication,
-				MatchedDN: "",
-				Message:  err.Error(),
-			},
-		}, nil
-	}
-
 	if ! ldapClientCtx.AppIsAuthenticated {
+		username, err  := DNtoUser(req.DN)
+		if err != nil {
+			return &ldap.BindResponse{
+				BaseResponse: ldap.BaseResponse{
+					Code:      ldap.ResultInvalidDNSyntax,
+					MatchedDN: "",
+					Message:  err.Error(),
+				},
+			}, nil
+		}
 		return self.AuthenticateAppRole(ldapClientCtx, username, password)
 	}else{
-		return self.AuthenticateVaultUser(ldapClientCtx, username, password)
+		path, err := DNtoPath(req.DN)
+		if err != nil {
+			return &ldap.BindResponse{
+				BaseResponse: ldap.BaseResponse{
+					Code:      ldap.ResultInvalidDNSyntax,
+					MatchedDN: "",
+					Message:  err.Error(),
+				},
+			}, nil
+		}
+		return self.AuthenticateVaultUser(ldapClientCtx, path, password)
 	}
 }
 
@@ -175,7 +175,7 @@ func (VaultBackend) Search(ctx ldap.Context, req *ldap.SearchRequest) (*ldap.Sea
 			},
 		}, nil
 	}
-	_, err  := parseDN(req.BaseDN)
+	_, err  := DNtoUser(req.BaseDN)
 	if err != nil {
 		return &ldap.SearchResponse{
 			BaseResponse: ldap.BaseResponse{
